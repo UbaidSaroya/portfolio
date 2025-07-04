@@ -32,19 +32,22 @@ pipeline {
             steps {
                 sshagent (credentials: ['ec2-ssh']) {
                     sh '''
-                    # Clean any old files
-                    rm -f ubaid-portfolio.tar.bz2
-
-                    # Save the Docker image to tar.bz2
-                    docker save ubaid-portfolio | bzip2 > ubaid-portfolio.tar.bz2
-
-                    # Copy the tar.bz2 file to EC2
-                    scp -o StrictHostKeyChecking=no ubaid-portfolio.tar.bz2 ec2-user@15.207.113.34:/home/ec2-user/
-
-                    # Load the image and restart container on EC2
+                    # 1) Stop and remove old container and image on EC2
                     ssh -o StrictHostKeyChecking=no ec2-user@15.207.113.34 '
                         docker stop portfolio || true
                         docker rm portfolio || true
+                        docker rmi ubaid-portfolio || true
+                    '
+
+                    # 2) Save the new Docker image as tar.bz2
+                    rm -f ubaid-portfolio.tar.bz2
+                    docker save ubaid-portfolio | bzip2 > ubaid-portfolio.tar.bz2
+
+                    # 3) Copy tar.bz2 file to EC2
+                    scp -o StrictHostKeyChecking=no ubaid-portfolio.tar.bz2 ec2-user@15.207.113.34:/home/ec2-user/
+
+                    # 4) Load the image and run new container on EC2
+                    ssh -o StrictHostKeyChecking=no ec2-user@15.207.113.34 '
                         bunzip2 -f ubaid-portfolio.tar.bz2
                         docker load -i ubaid-portfolio.tar
                         rm -f ubaid-portfolio.tar
