@@ -1,24 +1,18 @@
 pipeline {
     agent any
 
-    environment {
-        IMAGE_NAME = "ubaid-portfolio"
-        REMOTE_USER = "ec2-user"
-        REMOTE_HOST = "15.207.113.34"
-        SSH_CREDENTIALS = "ec2-ssh"
-    }
-
     stages {
         stage('Checkout Code') {
             steps {
-                git 'https://github.com/UbaidSaroya/portfolio.git'
+                git branch: 'main',
+                    url: 'https://github.com/UbaidSaroya/portfolio.git'
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 script {
-                    sh "docker build -t $IMAGE_NAME ."
+                    docker.build('ubaid-portfolio')
                 }
             }
         }
@@ -26,26 +20,25 @@ pipeline {
         stage('Test Docker Container') {
             steps {
                 script {
-                    sh "docker run -d -p 8080:80 --name test-container $IMAGE_NAME"
-                    sh "sleep 5"
-                    sh "docker ps"
-                    sh "docker stop test-container"
-                    sh "docker rm test-container"
+                    docker.image('ubaid-portfolio').withRun('-d -p 8080:80') { c ->
+                        sh 'sleep 5'
+                        sh 'curl -f http://localhost:8080'
+                    }
                 }
             }
         }
 
         stage('Deploy to EC2') {
             steps {
-                sshagent (credentials: [SSH_CREDENTIALS]) {
-                    // Stop and remove old container if exists
-                    sh "ssh -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST 'docker stop portfolio || true && docker rm portfolio || true'"
-                    // Remove old image if exists
-                    sh "ssh $REMOTE_USER@$REMOTE_HOST 'docker rmi $IMAGE_NAME || true'"
-                    // Save and copy new image
-                    sh "docker save $IMAGE_NAME | bzip2 | ssh $REMOTE_USER@$REMOTE_HOST 'bunzip2 | docker load'"
-                    // Run new container
-                    sh "ssh $REMOTE_USER@$REMOTE_HOST 'docker run -d -p 80:80 --name portfolio $IMAGE_NAME'"
+                sshagent (credentials: ['ec2-ssh']) {
+                    sh """
+                    ssh -o StrictHostKeyChecking=no ec2-user@15.207.113.34 \\
+                        'docker stop portfolio || true && docker rm portfolio || true && docker rmi ubaid-portfolio || true'
+                    docker save ubaid-portfolio | bzip2 | \\
+                    ssh -o StrictHostKeyChecking=no ec2-user@15.207.113.34 'bunzip2 | docker load'
+                    ssh -o StrictHostKeyChecking=no ec2-user@15.207.113.34 \\
+                        'docker run -d -p 80:80 --name portfolio ubaid-portfolio'
+                    """
                 }
             }
         }
