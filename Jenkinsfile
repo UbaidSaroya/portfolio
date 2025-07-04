@@ -20,12 +20,9 @@ pipeline {
         stage('Test Docker Container') {
             steps {
                 script {
-                    def container = docker.image('ubaid-portfolio').run('-p 8081:80')
-                    try {
+                    docker.image('ubaid-portfolio').withRun('-p 8081:80') { c ->
                         sh 'sleep 5'
                         sh 'curl -f http://localhost:8081'
-                    } finally {
-                        container.stop()
                     }
                 }
             }
@@ -35,32 +32,24 @@ pipeline {
             steps {
                 sshagent (credentials: ['ec2-ssh']) {
                     sh '''
-                        # 1) Clean old container and image on EC2
-                        ssh -o StrictHostKeyChecking=no ec2-user@15.207.113.34 '
-                            docker stop portfolio || true
-                            docker rm portfolio || true
-                            docker rmi ubaid-portfolio || true
-                        '
+                    # Clean any old files
+                    rm -f ubaid-portfolio.tar.bz2
 
-                        # 2) Remove old tar files locally
-                        rm -f ubaid-portfolio.tar ubaid-portfolio.tar.bz2
+                    # Save the Docker image to tar.bz2
+                    docker save ubaid-portfolio | bzip2 > ubaid-portfolio.tar.bz2
 
-                        # 3) SAVE IMAGE - IMPORTANT: Image exists here
-                        docker save -o ubaid-portfolio.tar ubaid-portfolio
+                    # Copy the tar.bz2 file to EC2
+                    scp -o StrictHostKeyChecking=no ubaid-portfolio.tar.bz2 ec2-user@15.207.113.34:/home/ec2-user/
 
-                        # 4) Compress the tar
-                        bzip2 ubaid-portfolio.tar
-
-                        # 5) Copy tar.bz2 to EC2
-                        scp -o StrictHostKeyChecking=no ubaid-portfolio.tar.bz2 ec2-user@15.207.113.34:/home/ec2-user/
-
-                        # 6) Load image and start container on EC2
-                        ssh -o StrictHostKeyChecking=no ec2-user@15.207.113.34 '
-                            bunzip2 -f ubaid-portfolio.tar.bz2
-                            docker load -i ubaid-portfolio.tar
-                            rm -f ubaid-portfolio.tar
-                            docker run -d -p 80:80 --name portfolio ubaid-portfolio
-                        '
+                    # Load the image and restart container on EC2
+                    ssh -o StrictHostKeyChecking=no ec2-user@15.207.113.34 '
+                        docker stop portfolio || true
+                        docker rm portfolio || true
+                        bunzip2 -f ubaid-portfolio.tar.bz2
+                        docker load -i ubaid-portfolio.tar
+                        rm -f ubaid-portfolio.tar
+                        docker run -d -p 80:80 --name portfolio ubaid-portfolio
+                    '
                     '''
                 }
             }
