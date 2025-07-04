@@ -1,10 +1,11 @@
-# Use official PHP Apache image
-FROM php:8.2-apache
+# Use official Nginx image
+FROM nginx:alpine
 
-RUN a2enmod rewrite
+# Remove default site
+RUN rm -rf /usr/share/nginx/html/*
 
-COPY . /var/www/html/
+# Copy project files into Nginx directory
+COPY . /usr/share/nginx/html
 
-RUN chown -R www-data:www-data /var/www/html
-
+# Expose port 80 inside the container
 EXPOSE 80
