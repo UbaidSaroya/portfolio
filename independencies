@@ -1,0 +1,19 @@
+✅ Server par PHP installed hona chahiye.
+
+sudo apt update
+sudo apt install apache2
+sudo apt install php libapache2-mod-php
+
+
+✅ Mail bhejne ka program (sendmail ya SMTP) setup hona chahiye.
+
+sudo apt install sendmail
+
+
+✅ AWS EC2 port permissions .
+
+ EC2
+port 25
+
+
+
