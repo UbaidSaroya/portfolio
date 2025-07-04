@@ -20,7 +20,6 @@ pipeline {
         stage('Test Docker Container') {
             steps {
                 script {
-                    // Note: Port changed to 8081 to avoid Jenkins conflict
                     docker.image('ubaid-portfolio').withRun('-p 8081:80') { c ->
                         sh 'sleep 5'
                         sh 'curl -f http://localhost:8081'
@@ -33,16 +32,22 @@ pipeline {
             steps {
                 sshagent (credentials: ['ec2-ssh']) {
                     sh '''
+                    # Clean any old files
+                    rm -f ubaid-portfolio.tar.bz2
+
+                    # Save the Docker image to tar.bz2
+                    docker save ubaid-portfolio | bzip2 > ubaid-portfolio.tar.bz2
+
+                    # Copy the tar.bz2 file to EC2
+                    scp -o StrictHostKeyChecking=no ubaid-portfolio.tar.bz2 ec2-user@15.207.113.34:/home/ec2-user/
+
+                    # Load the image and restart container on EC2
                     ssh -o StrictHostKeyChecking=no ec2-user@15.207.113.34 '
                         docker stop portfolio || true
                         docker rm portfolio || true
-                        docker rmi ubaid-portfolio || true
-                    '
-
-                    docker save ubaid-portfolio | bzip2 | \
-                    ssh -o StrictHostKeyChecking=no ec2-user@15.207.113.34 'bunzip2 | docker load'
-
-                    ssh -o StrictHostKeyChecking=no ec2-user@15.207.113.34 '
+                        bunzip2 -f ubaid-portfolio.tar.bz2
+                        docker load -i ubaid-portfolio.tar
+                        rm -f ubaid-portfolio.tar
                         docker run -d -p 80:80 --name portfolio ubaid-portfolio
                     '
                     '''
