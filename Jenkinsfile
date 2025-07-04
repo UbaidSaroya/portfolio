@@ -11,7 +11,7 @@ pipeline {
     stages {
         stage('Checkout Code') {
             steps {
-                git 'https://github.com/UbaidSaroya/portfolio-responsive-complete-main.git'
+                git 'https://github.com/UbaidSaroya/portfolio.git'
             }
         }
 
